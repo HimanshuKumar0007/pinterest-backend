@@ -5,8 +5,9 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
+/* ✅ ADD THIS */
 app.get('/', (req, res) => {
-  res.send('Pinterest backend is running');
+  res.send('Pinterest backend is running 🚀');
 });
 
 app.get('/download', async (req, res) => {
@@ -18,9 +19,7 @@ app.get('/download', async (req, res) => {
 
   try {
     const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0'
-      }
+      headers: { 'User-Agent': 'Mozilla/5.0' }
     });
 
     const html = response.data;
@@ -39,7 +38,6 @@ app.get('/download', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, '0.0.0.0', () => {
-  console.log("Server running on port", PORT);
+  console.log('Server running on port', PORT);
 });
