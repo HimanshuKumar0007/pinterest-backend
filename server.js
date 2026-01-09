@@ -5,6 +5,10 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
+app.get('/', (req, res) => {
+  res.send('Pinterest backend is running');
+});
+
 app.get('/download', async (req, res) => {
   const url = req.query.url;
 
@@ -36,6 +40,6 @@ app.get('/download', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log("Server running on port", PORT);
 });
