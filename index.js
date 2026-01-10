@@ -26,20 +26,31 @@ app.get('/download', async (req, res) => {
 
     const html = response.data;
 
-    // ✅ Extract ONLY real MP4 video URLs
-    const matches = html.match(/https:\/\/v1\.pinimg\.com\/videos\/.*?\.mp4/g);
+    // Try multiple patterns:
+    // 1. direct v1 pinimg mp4
+    const mp4Urls1 = html.match(/https:\/\/v1\.pinimg\.com\/videos\/.*?\.mp4/g);
 
-    if (!matches || matches.length === 0) {
+    // 2. fallback: look for other mp4 links in the JSON structures
+    const mp4Urls2 = html.match(/https?:\/\/.*?\.mp4/g);
+
+    // Combine results (avoid duplicates)
+    const allMp4s = [
+      ...(mp4Urls1 || []),
+      ...(mp4Urls2 || [])
+    ].filter((v,i,a) => a.indexOf(v) === i);
+
+    if (!allMp4s.length) {
       return res.json({ error: 'No downloadable video found' });
     }
 
-    // ✅ Highest quality is usually the LAST one
-    const videoUrl = matches[matches.length - 1];
+    // Heuristic: prefer v1.pinimg.com links (highest quality)
+    const preferred = allMp4s.filter(url => url.includes("v1.pinimg.com"));
+    const videoUrl = preferred.length ? preferred[preferred.length - 1] : allMp4s[allMp4s.length - 1];
 
     res.json({ video: videoUrl });
 
   } catch (err) {
-    console.error(err.message);
+    console.error(err);
     res.json({ error: 'Failed to fetch video' });
   }
 });
