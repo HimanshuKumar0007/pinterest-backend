@@ -18,28 +18,38 @@ app.get('/download', async (req, res) => {
 
   try {
     const response = await axios.get(url, {
+      maxRedirects: 5,
       headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept-Language': 'en-US,en;q=0.9'
-      }
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
     });
 
     const html = response.data;
 
     // ✅ Extract ONLY real MP4 video URLs
-    const matches = html.match(/https:\/\/v1\.pinimg\.com\/videos\/.*?\.mp4/g);
+    const matches = html.match(
+      /https:\/\/v1\.pinimg\.com\/videos\/.*?\.mp4/g
+    );
 
     if (!matches || matches.length === 0) {
-      return res.json({ error: 'No downloadable video found' });
+      return res.json({
+        error: 'No downloadable MP4 found (HLS/protected pin)',
+      });
     }
 
-    // ✅ Highest quality is usually the LAST one
+    // ✅ Usually highest quality = last MP4
     const videoUrl = matches[matches.length - 1];
 
     res.json({ video: videoUrl });
-
   } catch (err) {
     console.error(err.message);
     res.json({ error: 'Failed to fetch video' });
   }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('Server running on port', PORT);
 });
