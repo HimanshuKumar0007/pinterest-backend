@@ -5,56 +5,71 @@ const cors = require("cors");
 const app = express();
 app.use(cors());
 
+// 🔹 Health check (VERY IMPORTANT for Render)
 app.get("/", (req, res) => {
-  res.send("Pinterest Backend is running 🚀");
+  res.status(200).send("Pinterest Backend is running 🚀");
 });
 
 app.get("/download", async (req, res) => {
-  let pinUrl = req.query.url;
+  const pinUrl = req.query.url;
 
   if (!pinUrl) {
     return res.status(400).json({ error: "Pinterest URL required" });
   }
 
   try {
-    // 1️⃣ Follow redirects (pin.it → pinterest.com)
-    const pageResponse = await axios.get(pinUrl, {
+    const response = await axios({
+      method: "GET",
+      url: pinUrl,
       maxRedirects: 5,
+      timeout: 15000,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept-Language": "en-US,en;q=0.9",
       },
+      validateStatus: () => true // 🔑 prevents crash
     });
 
-    const html = pageResponse.data;
+    if (!response.data || typeof response.data !== "string") {
+      return res.json({ error: "Invalid Pinterest response" });
+    }
 
-    // 2️⃣ Extract ALL mp4 links
+    const html = response.data;
+
     const matches = html.match(/https:\/\/v\.pinimg\.com\/[^"]+\.mp4/g);
 
     if (!matches || matches.length === 0) {
       return res.json({
-        error: "No MP4 video found (Pinterest may use protected format)",
+        error: "No public MP4 found (Pinterest may use protected stream)"
       });
     }
 
-    // 3️⃣ Remove duplicates
-    const uniqueVideos = [...new Set(matches)];
+    const unique = [...new Set(matches)];
 
-    // 4️⃣ Pick best quality
     const best =
-      uniqueVideos.find(v => v.includes("720p")) ||
-      uniqueVideos.find(v => v.includes("540p")) ||
-      uniqueVideos[0];
+      unique.find(v => v.includes("720p")) ||
+      unique.find(v => v.includes("540p")) ||
+      unique[0];
 
     return res.json({
       success: true,
       video: best,
-      all: uniqueVideos,
+      all: unique
     });
 
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ error: "Failed to fetch Pinterest page" });
+    console.error("DOWNLOAD ERROR:", err.message);
+    return res.status(500).json({ error: "Internal server error" });
   }
+});
+
+// 🔹 CRITICAL FOR RENDER
+const PORT = process.env.PORT;
+if (!PORT) {
+  console.error("PORT not defined");
+}
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("Server running on port", PORT);
 });
