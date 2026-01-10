@@ -1,75 +1,59 @@
-const express = require("express");
-const axios = require("axios");
-const cors = require("cors");
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
 
 const app = express();
 app.use(cors());
 
-// 🔹 Health check (VERY IMPORTANT for Render)
-app.get("/", (req, res) => {
-  res.status(200).send("Pinterest Backend is running 🚀");
+app.get('/', (req, res) => {
+  res.send('Pinterest Backend is running 🚀');
 });
 
-app.get("/download", async (req, res) => {
-  const pinUrl = req.query.url;
-
-  if (!pinUrl) {
-    return res.status(400).json({ error: "Pinterest URL required" });
-  }
-
+app.get('/download', async (req, res) => {
   try {
-    const response = await axios({
-      method: "GET",
-      url: pinUrl,
-      maxRedirects: 5,
-      timeout: 15000,
+    let inputUrl = req.query.url;
+    if (!inputUrl) {
+      return res.json({ error: 'Pinterest URL required' });
+    }
+
+    // 1. Follow pin.it redirect
+    const page = await axios.get(inputUrl, {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
+        'User-Agent': 'Mozilla/5.0',
+        'Accept-Language': 'en-US,en;q=0.9'
       },
-      validateStatus: () => true // 🔑 prevents crash
+      maxRedirects: 5
     });
 
-    if (!response.data || typeof response.data !== "string") {
-      return res.json({ error: "Invalid Pinterest response" });
+    const html = page.data;
+
+    // 2. Extract Pinterest JSON blob
+    const jsonMatch = html.match(/window\.__PWS_DATA__\s*=\s*(\{.*?\});/s);
+    if (!jsonMatch) {
+      return res.json({ error: 'No Pinterest data found' });
     }
 
-    const html = response.data;
+    const data = JSON.parse(jsonMatch[1]);
 
-    const matches = html.match(/https:\/\/v\.pinimg\.com\/[^"]+\.mp4/g);
-
-    if (!matches || matches.length === 0) {
-      return res.json({
-        error: "No public MP4 found (Pinterest may use protected stream)"
-      });
+    // 3. Walk object safely
+    const pins = JSON.stringify(data);
+    
+    // Try MP4 first
+    const mp4Match = pins.match(/https:\/\/.*?\.mp4/g);
+    if (mp4Match) {
+      return res.json({ video: mp4Match[0], type: 'mp4' });
     }
 
-    const unique = [...new Set(matches)];
+    // Fallback to HLS
+    const m3u8Match = pins.match(/https:\/\/.*?\.m3u8/g);
+    if (m3u8Match) {
+      return res.json({ video: m3u8Match[0], type: 'hls' });
+    }
 
-    const best =
-      unique.find(v => v.includes("720p")) ||
-      unique.find(v => v.includes("540p")) ||
-      unique[0];
-
-    return res.json({
-      success: true,
-      video: best,
-      all: unique
-    });
+    return res.json({ error: 'No downloadable video found' });
 
   } catch (err) {
-    console.error("DOWNLOAD ERROR:", err.message);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error(err.message);
+    res.json({ error: 'Pinterest blocked request or format unsupported' });
   }
-});
-
-// 🔹 CRITICAL FOR RENDER
-const PORT = process.env.PORT;
-if (!PORT) {
-  console.error("PORT not defined");
-}
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("Server running on port", PORT);
 });
